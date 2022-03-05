@@ -1,0 +1,1 @@
+The purpose of this project is fetch all the data and content in RSS feeds and start retreiving the audio to build a knowledge graph in Neo4j. 
