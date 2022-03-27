@@ -1,3 +1,8 @@
 audio/*
 bin/*
 .env
+__pycache__
+.vscode/*
+pywikibot.lwp
+google-cloud-key.json
+archive.zip

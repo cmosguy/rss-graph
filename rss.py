@@ -4,7 +4,6 @@ Function to import RSS from a URL
 """
 from asyncio.windows_utils import pipe
 from distutils.command.upload import upload
-import feedparser
 import re
 from matplotlib.pyplot import get
 import pandas as pd
@@ -40,84 +39,22 @@ import json
 import urllib
 from string import punctuation
 import nltk
+from extract_sds import get_rss_data
 
 
 client = speech.SpeechClient()
 storage_client = storage.Client()
 
 
-# import dotenv
-
-##--- kernel crashes with spacy installed
-# import spacy
-
-#%%
-tokens = pd.read_excel('tokens_super_data_science.xlsx')
-#%%
-tokens.info()
-
-#%%
-tokens.groupby("doc_id").size().hist(figsize=(14, 7), color="red", alpha=.4, bins=50);
-#%%
-
-# import rss feed from soundcloud into pandas
-def rss_import(url):
-	"""
-	Function to import RSS from a URL
-	"""
-	# parse the rss feed
-	feed = feedparser.parse(url)
-	# create a list of dictionaries
-	entries = []
-	for entry in feed.entries:
-		entries.append(entry)
-	# create a dataframe from the list of dictionaries
-	df = pd.DataFrame(entries)
-	# return the dataframe
-	return df
-
-url1 = "https://feeds.soundcloud.com/users/soundcloud:users:253585900/sounds.rss"
-url2 = "https://feeds.soundcloud.com/users/soundcloud:users:253585900/sounds.rss?before=319648311"
-
-
-data = pd.concat([rss_import(url1), rss_import(url2)])
-
 #%% 
-def get_episode_no(x):
-	"""Extract episode number from title"""
-	search = re.search('SDS (\d+)', x)
-	if search:
-		return int(search.group(1))
-	return None
-
-def get_title(x):
-	"""Extract episode number from title"""
-	search = re.search('SDS \d+\s*:\s*(.*)', x)
-	if search:
-		return search.group(1)
-	return None
-data['episode_no'] = data['title'].apply(lambda x: get_episode_no(x))
-data['title'] = data['title'].apply(lambda x: get_title(x))
-data['summary'] = data['summary']
-data['size_mb'] = data['links'].apply(lambda x: int(x[1]['length'])/1000000)
-data['content'] = data['content'].apply(lambda x: x[0]['value'])
-data['image'] = data['image'].apply(lambda x: x['href'])
-data['link_mp3'] = data['links'].apply(lambda x: x[1]['href'])
-data.drop(columns=['id', 'guidislink', 'title_detail', 'published_parsed', 'title_detail',
-'authors', 'author_detail', 'itunes_explicit', 'summary_detail','subtitle_detail','links'], inplace=True)
-
-#%%
-d = dtale.show(data)
-d
-
-#%%
-wikifier_key = open('.wikifier_key', 'r').read()
-
 def ie_pipeline(text, relation_threshold=0.9, entities_threshold=0.8):
     # Prepare the URL.
     data = urllib.parse.urlencode([
-        ("text", text), ("relation_threshold", relation_threshold),
-        ("entities_threshold", entities_threshold)])
+        ("text", text), 
+		("relation_threshold", relation_threshold),
+        ("entities_threshold", entities_threshold),
+        ("userkey", os.getenv('WIKIFIER_KEY')),
+		])
     
     url = "http://localhost:5000?" + data
     req = urllib.request.Request(url, data=data.encode("utf8"), method="GET")
@@ -127,15 +64,7 @@ def ie_pipeline(text, relation_threshold=0.9, entities_threshold=0.8):
     # Output the annotations.
     return response
 
-#%%
-print('Putting episode content into information extraction (ie) pipeline...')
-data['ie'] = data['content'].apply(lambda x: ie_pipeline(x))
 
-#%%
-data.to_excel('data.xlsx')
-#%% read data from the text file
-data = pd.read_excel('data.xlsx')
-#%%
 class Neo4jConnection:
     
     def __init__(self, uri, user, pwd, db):
@@ -168,7 +97,7 @@ class Neo4jConnection:
         return response
 
 #%%
-conn = Neo4jConnection(uri="bolt://18.234.199.136:7687", user="neo4j", pwd="rating-investigation-retractors", db="rss")
+conn = Neo4jConnection(uri=os.getenv('NEO4J_URI'), user=os.getenv('NEO4J_USER'), pwd=os.getenv('NEO4J_PASSWORD'), db="rss")
 def insert_data(query, rows, batch_size = 10000):
     # Function to handle the updating the Neo4j database in batch mode.
 
@@ -220,8 +149,31 @@ def add_episodes(rows, batch_size=10000):
 
 	return insert_data(query, rows, batch_size)
 
+#%%
 
 #%%
+# uncommment if you want to spend time getting the wikififier data it takes a long time
+#uncomment to read dat from excel read data from the text file
+#print('Putting episode content into information extraction (ie) pipeline...')
+# data['ie'] = data['content'].apply(lambda x: ie_pipeline(x))
+# data = get_rss_data()
+# data.to_excel('data.xlsx')
+data = pd.read_excel('data.xlsx')
+
+#%%
+d = dtale.show(data)
+d
+
+#%%
+tokens = pd.read_excel('tokens_super_data_science.xlsx')
+#%%
+tokens.info()
+
+#%%
+tokens.groupby("doc_id").size().hist(figsize=(14, 7), color="red", alpha=.4, bins=50);
+#%%
+
+#%% ADD TO NEO4J
 print('Adding episodes to Neo4j...')
 add_episodes(data, batch_size=100)
 

@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "..\\wikidata-analysis"
+		},
+		{
+			"path": "..\\Wikipedia-Data-Exploration"
+		},
+		{
+			"path": "..\\wikidata-properties-dumper"
+		}
+	],
+	"settings": {}
+}
